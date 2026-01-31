@@ -1,7 +1,6 @@
 import express from "express";
 import { runSchema } from "../schemas/run.schema";
-import { submissionQueue } from "../queue/submission.queue";
-import { runInContainer } from "~/docker/runInContainer";
+import { getExecutor } from "~/executors";
 
 export const startApiServer = () => {
     const app = express();
@@ -14,7 +13,8 @@ export const startApiServer = () => {
             return res.status(400).json(parsed.error);
         }
 
-        const result = await runInContainer(parsed.data);
+        const executor = getExecutor(parsed.data.language);
+        const result = await executor.execute(parsed.data.code, parsed.data.input)
 
         return res.json({
             status: "DONE",

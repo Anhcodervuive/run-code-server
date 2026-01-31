@@ -13,9 +13,9 @@ export const startWorker = async () => {
         async (job) => {
             console.log(`▶ Running job ${job.id}`);
 
-            const result = await runInContainer(job.data);
+            // const result = await runInContainer(job.data);
 
-            console.log("✅ Result:", result);
+            console.log("✅ Result:",);
         },
         {
             connection,
