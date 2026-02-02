@@ -1,9 +1,18 @@
 import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
+
+export type CodeFile = {
+    filename: string;
+    content: string;
+};
 
 export type ContainerRunPayload = {
     image: string;
     cmd: string[];
-    stdin?: string | undefined;
+    codeFiles: CodeFile[];
+    stdin?: string;
     timeoutMs?: number;
 };
 
@@ -15,15 +24,37 @@ export const runInContainer = (
     exitCode: number | null;
     timeMs: number;
 }> => {
-    const { image, cmd, stdin, timeoutMs = 2000 } = payload;
+    const {
+        image,
+        cmd,
+        codeFiles,
+        stdin,
+        timeoutMs = 3000,
+    } = payload;
 
     return new Promise((resolve) => {
+        // 1️⃣ Create temp folder (HOST)
+        const tempDir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "submission-")
+        );
+
+        // 2️⃣ Write code files
+        for (const file of codeFiles) {
+            fs.writeFileSync(
+                path.join(tempDir, file.filename),
+                file.content
+            );
+        }
+
+        // 3️⃣ Docker args
         const args = [
             "run",
             "--rm",
             "--memory=256m",
             "--cpus=0.5",
             "--network=none",
+            "-v",
+            `${tempDir}:/sandbox:ro`,
             image,
             ...cmd,
         ];
@@ -42,17 +73,27 @@ export const runInContainer = (
             proc.kill("SIGKILL");
         }, timeoutMs);
 
-        proc.stdout.on("data", (d) => (stdout += d));
-        proc.stderr.on("data", (d) => (stderr += d));
+        proc.stdout.on("data", (d) => {
+            stdout += d.toString();
+        });
+
+        proc.stderr.on("data", (d) => {
+            stderr += d.toString();
+        });
 
         if (stdin) {
             proc.stdin.write(stdin);
         }
         proc.stdin.end();
 
-        proc.on("close", (code) => {
+        // 4️⃣ IMPORTANT: cleanup + resolve ONLY here
+        proc.on("close", (code: number | null) => {
             clearTimeout(timer);
+
             const end = process.hrtime.bigint();
+
+            // ✅ cleanup AFTER container finished
+            fs.rmSync(tempDir, { recursive: true, force: true });
 
             resolve({
                 stdout,
