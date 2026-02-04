@@ -1,18 +1,34 @@
-import { runInContainer } from "../docker/runInContainer";
+import { runModeType } from "~/schemas/submission";
+import { languageExecutor } from "./language.executor";
+import { runJudge } from "~/docker/runInContainer";
+import { getProblemAndTestcase } from "~/service/problem";
 
-export class PythonExecutor {
-    async execute(code: string, input?: string) {
-        return runInContainer({
+export class PythonExecutor extends languageExecutor {
+    async execute(
+        code: string,
+        problemId: string,
+        mode: runModeType = "ATTEMPT"
+    ) {
+        const problem = await getProblemAndTestcase(problemId);
+        console.log(problem);
+        if (!problem) throw new Error("Problem not found");
+
+        return runJudge({
+            runMode: mode,
+            problem,
             image: "ptn-python-executor:1.0",
-            cmd: ["python3", "/sandbox/main.py"],
             codeFiles: [
                 {
                     filename: "main.py",
                     content: code,
                 },
             ],
-            stdin: input ?? '',
-            timeoutMs: 3000,
+            buildCmd: [], // ❗ Python không cần compile
+            runCmd: (inputFile) => [
+                "python3",
+                "/sandbox/code/main.py",
+                inputFile,
+            ],
         });
     }
 }

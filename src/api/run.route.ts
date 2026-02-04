@@ -14,15 +14,15 @@ export const startApiServer = () => {
         }
 
         const executor = getExecutor(parsed.data.language);
-        const result = await executor.execute(parsed.data.code, parsed.data.input)
+        // const result = await executor.execute(parsed.data.code, parsed.data.input)
 
         return res.json({
             status: "DONE",
-            result,
+            // result,
         });
     });
 
-    const port = 3000;
+    const port = 3005;
     app.listen(port, () => {
         console.log(`🚀 API server running on port ${port}`);
     });

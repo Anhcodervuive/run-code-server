@@ -1,19 +1,27 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
-import { runInContainer } from "../docker/runInContainer";
 import { RunPayload } from "../schemas/run.schema";
 import { warmUpDocker } from "./warmup";
+import { getExecutor } from "~/executors";
 
 export const startWorker = async () => {
     await warmUpDocker();
-    const connection = new IORedis(process.env.REDIS_URL!);
+    const connection = new IORedis(process.env.REDIS_URL!, {
+        maxRetriesPerRequest: null,
+    });
 
     new Worker<RunPayload>(
-        "submission",
+        "codeRun",
         async (job) => {
             console.log(`▶ Running job ${job.id}`);
 
-            // const result = await runInContainer(job.data);
+            const { code, language, mode, problemId } = job.data
+            console.log(language, code, mode, problemId);
+
+            const codeExecutor = getExecutor(language)
+
+            const result = await codeExecutor.execute(code, problemId, mode)
+            console.log(result);
 
             console.log("✅ Result:",);
         },

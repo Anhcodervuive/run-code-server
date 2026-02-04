@@ -1,9 +1,12 @@
 import { z } from "zod";
+import { runMode, supportedLanguages } from "./submission";
+
 
 export const runSchema = z.object({
-    language: z.enum(["js", "python"]),
+    language: supportedLanguages,
     code: z.string().max(20_000),
-    input: z.string().optional(),
+    problemId: z.string(),
+    mode: runMode
 });
 
 export type RunPayload = z.infer<typeof runSchema>;

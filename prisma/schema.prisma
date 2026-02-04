@@ -1,0 +1,218 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? @db.Text
+  access_token             String? // @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? // @db.Text
+  session_state            String?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refresh_token_expires_in Int?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  USER
+  INSTRUCTOR
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  password      String
+  emailVerified DateTime? @map("email_verified_at")
+  image         String?
+  role          Role      @default(USER)
+  isBanned      Boolean   @default(false) @map("is_banned")
+
+  accounts    Account[]
+  sessions    Session[]
+  userProfile UserProfile?
+  userStats   UserStats[]
+  submissions Submission[]
+  problems    Problem[]
+}
+
+model UserProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  username    String  @unique
+  displayName String? @map("display_name")
+
+  avatarUrl String?
+  bio       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model UserStats {
+  userId String @id @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  solvedCount    Int @default(0) @map("solved_count")
+  attemptedCount Int @default(0) @map("attempted_count")
+
+  totalSubmissions Int @default(0) @map("total_submissions")
+  acceptedCount    Int @default(0) @map("accepted_count")
+  rating           Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+enum ProgrammingLanguage {
+  JAVASCRIPT
+  PYTHON
+  CPP
+}
+
+enum SubmissionStatus {
+  PENDING
+  RUNNING
+  DONE
+  ERROR
+}
+
+enum ProblemStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Problem {
+  id          String @id @default(cuid())
+  title       String
+  slug        String @unique
+  description String @db.Text
+
+  difficulty Difficulty
+  status     ProblemStatus @default(DRAFT)
+
+  // 🔧 Judge config
+  timeLimitMs   Int @default(3000) @map("time_limit_ms")
+  memoryLimitMb Int @default(256) @map("memory_limit_mb")
+
+  // 📘 Learning content
+  hint      String? @db.Text
+  editorial String? @db.Text
+
+  createdById String @map("created_by")
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  submissions  Submission[]
+  testCases    TestCase[]
+  problemStats ProblemStats[]
+}
+
+model TestCase {
+  id        String @id @default(cuid())
+  problemId String
+
+  input    String  @db.Text
+  expected String  @db.Text
+  isHidden Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+}
+
+model ProblemStats {
+  problemId String  @id
+  problem   Problem @relation(fields: [problemId], references: [id])
+
+  submissionCount Int   @default(0)
+  acceptedCount   Int   @default(0)
+  acceptanceRate  Float @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Submission {
+  id        String @id @default(cuid())
+  userId    String @map("user_id")
+  problemId String @map("problem_id")
+
+  language ProgrammingLanguage
+
+  // 🔑 Hash của code (SHA256)
+  codeHash String @map("code_hash")
+
+  // 📸 Snapshot (optional)
+  hasSnapshot  Boolean @default(false) @map("has_snapshot")
+  snapshotPath String? @map("snapshot_path")
+
+  status SubmissionStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  result SubmissionResult?
+}
+
+model SubmissionResult {
+  id           String @id @default(cuid())
+  submissionId String @unique @map("submission_id")
+
+  stdout   String? @db.Text
+  stderr   String? @db.Text
+  exitCode Int?
+  timeMs   Float?  @map("time_ms")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
