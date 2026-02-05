@@ -6,6 +6,7 @@
 	"author": "",
 	"main": "index.js",
 	"scripts": {
+		"dev": "npx tsx watch src --clear-screen=false",
 		"dev:api": "nodemon --require tsconfig-paths/register src/index.ts api",
 		"dev:worker": "nodemon --require tsconfig-paths/register src/index.ts worker",
 		"test": "echo \"Error: no test specified\" && exit 1"

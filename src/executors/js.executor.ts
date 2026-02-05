@@ -1,34 +1,24 @@
+import { runJudge } from "~/judge/runJudge";
 import { runModeType } from "~/schemas/submission";
-import { languageExecutor } from "./language.executor";
-import { runJudge } from "~/docker/runInContainer";
 import { getProblemAndTestcase } from "~/service/problem";
+import { createCodeSubmission } from "~/service/submission";
+import { hashString } from "~/utils/stringControl";
 
-
-export class JsExecutor extends languageExecutor {
-    async execute(
-        code: string,
-        problemId: string,
-        mode: runModeType = "ATTEMPT"
-    ) {
+export class JsExecutor {
+    async execute(code: string, problemId: string, mode: runModeType, userId: string) {
         const problem = await getProblemAndTestcase(problemId);
-        console.log(problem);
         if (!problem) throw new Error("Problem not found");
-        return runJudge({
-            runMode: mode,
-            problem,
-            image: "ptn-js-executor:1.0",
-            codeFiles: [
-                {
-                    filename: "main.js",
-                    content: code,
-                },
-            ],
-            buildCmd: [], // JS không cần build
-            runCmd: (inputFile) => [
-                "node",
-                "/sandbox/code/main.js",
-                inputFile,
-            ],
-        });
+
+        const hashedCode = hashString(code)
+        const submission = await createCodeSubmission(problemId, userId, {
+            sourceCode: code,
+            language: "JAVASCRIPT",
+            type: mode,
+            codeHash: hashedCode,
+            problemId,
+            userId,
+        })
+
+        return runJudge(submission, problem, code);
     }
 }

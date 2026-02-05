@@ -1,35 +1,47 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
-import { RunPayload } from "../schemas/run.schema";
-import { warmUpDocker } from "./warmup";
 import { getExecutor } from "~/executors";
+import { RunPayload } from "~/schemas/run.schema";
 
-export const startWorker = async () => {
-    await warmUpDocker();
-    const connection = new IORedis(process.env.REDIS_URL!, {
-        maxRetriesPerRequest: null,
-    });
+const connection = new IORedis(process.env.REDIS_URL!, {
+    maxRetriesPerRequest: null
+});
 
-    new Worker<RunPayload>(
+export function startSubmissionWorker() {
+    const worker = new Worker<RunPayload>(
         "codeRun",
         async (job) => {
-            console.log(`▶ Running job ${job.id}`);
+            const { code, language, problemId, mode, userId } = job.data;
 
-            const { code, language, mode, problemId } = job.data
-            console.log(language, code, mode, problemId);
+            console.log("🚀 Processing job", job.id, language, mode, code);
 
-            const codeExecutor = getExecutor(language)
+            // 1️⃣ Execute code
+            const executor = getExecutor(language)
+            const result = await executor.execute(code, problemId, mode, userId);
 
-            const result = await codeExecutor.execute(code, problemId, mode)
+
+            // // 2️⃣ Persist result (simplified)
+            // await prisma.execution.create({
+            //     data: {
+            //         submissionId: job.id!.toString(), // or map properly
+            //         status: "DONE",
+            //     },
+            // });
+
             console.log(result);
-
-            console.log("✅ Result:",);
+            return result;
         },
         {
             connection,
-            concurrency: 1,
+            concurrency: 1, // IMPORTANT: start with 1
         }
     );
 
-    console.log("👷 Worker started");
-};
+    worker.on("failed", (job, err) => {
+        console.error("❌ Job failed", job?.id, err);
+    });
+
+    worker.on("completed", (job) => {
+        console.log("🎉 Job completed", job.id);
+    });
+}

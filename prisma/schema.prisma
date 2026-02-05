@@ -60,7 +60,7 @@ model User {
   sessions    Session[]
   userProfile UserProfile?
   userStats   UserStats[]
-  submissions Submission[]
+  submissions CodeSubmission[]
   problems    Problem[]
 }
 
@@ -142,9 +142,95 @@ model Problem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  submissions  Submission[]
+  submissions  CodeSubmission[]
   testCases    TestCase[]
   problemStats ProblemStats[]
+}
+
+enum SubmissionType {
+  DRAFT // autosave, only 1 allowed
+  ATTEMPT // user clicks "Run"
+  SUBMIT // user clicks "Submit"
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  DONE
+  ERROR
+}
+
+enum TestcaseStatus {
+  PASSED
+  FAILED
+  TLE
+  MLE
+  RUNTIME_ERROR
+}
+
+model CodeSubmission {
+  id String @id @default(cuid())
+
+  userId    String
+  problemId String
+
+  type     SubmissionType
+  language ProgrammingLanguage
+
+  // 🧾 Code stored directly in DB
+  sourceCode String @db.Text
+
+  // 🔑 For dedup / cache
+  codeHash String @map("code_hash")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  executions Execution[]
+
+  @@unique([userId, problemId, type], map: "unique_draft_per_problem")
+  @@index([userId, problemId])
+}
+
+model Execution {
+  id           String @id @default(cuid())
+  submissionId String @map("submission_id")
+
+  status ExecutionStatus @default(PENDING)
+
+  totalTimeMs   Float? @map("total_time_ms")
+  totalMemoryMb Float? @map("total_memory_mb")
+
+  stdout   String? @db.Text
+  stderr   String? @db.Text
+  exitCode Int?
+
+  createdAt DateTime @default(now())
+
+  submission      CodeSubmission            @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testcaseResults ExecutionTestcaseResult[]
+}
+
+model ExecutionTestcaseResult {
+  id          String @id @default(cuid())
+  executionId String
+  testCaseId  String
+
+  status TestcaseStatus
+
+  timeMs   Float
+  memoryMb Float
+
+  stdout String? @db.Text
+  stderr String? @db.Text
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  testCase  TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, testCaseId])
 }
 
 model TestCase {
@@ -157,7 +243,8 @@ model TestCase {
 
   createdAt DateTime @default(now())
 
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem                  Problem                   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  executionTestcaseResults ExecutionTestcaseResult[]
 }
 
 model ProblemStats {
@@ -169,44 +256,6 @@ model ProblemStats {
   acceptanceRate  Float @default(0)
 
   updatedAt DateTime @updatedAt
-}
-
-model Submission {
-  id        String @id @default(cuid())
-  userId    String @map("user_id")
-  problemId String @map("problem_id")
-
-  language ProgrammingLanguage
-
-  // 🔑 Hash của code (SHA256)
-  codeHash String @map("code_hash")
-
-  // 📸 Snapshot (optional)
-  hasSnapshot  Boolean @default(false) @map("has_snapshot")
-  snapshotPath String? @map("snapshot_path")
-
-  status SubmissionStatus @default(PENDING)
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-
-  result SubmissionResult?
-}
-
-model SubmissionResult {
-  id           String @id @default(cuid())
-  submissionId String @unique @map("submission_id")
-
-  stdout   String? @db.Text
-  stderr   String? @db.Text
-  exitCode Int?
-  timeMs   Float?  @map("time_ms")
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {

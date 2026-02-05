@@ -4,7 +4,7 @@ import { getProblemAndTestcase } from "~/service/problem";
 import { createCodeSubmission } from "~/service/submission";
 import { hashString } from "~/utils/stringControl";
 
-export class PythonExecutor {
+export class CppExecutor {
     async execute(code: string, problemId: string, mode: runModeType, userId: string) {
         const problem = await getProblemAndTestcase(problemId);
         if (!problem) throw new Error("Problem not found");
@@ -12,7 +12,7 @@ export class PythonExecutor {
         const hashedCode = hashString(code)
         const submission = await createCodeSubmission(problemId, userId, {
             sourceCode: code,
-            language: "PYTHON",
+            language: "CPP",
             type: mode,
             codeHash: hashedCode,
             problemId,
